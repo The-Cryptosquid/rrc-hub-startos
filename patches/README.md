@@ -13,7 +13,8 @@ upstream's own test suite passes unchanged with them applied.
 
 **Retire when:** upstream records or exposes the full identity hash of connected users (in a
 file, a stats command, or its logs) in a form the package can read, and the submodule is bumped
-past it.
+past it. Proposed upstream in [kc1awv/rrcd#19](https://github.com/kc1awv/rrcd/issues/19), with this
+patch and the alternatives that would replace it.
 
 rrcd logs only a 12-character prefix of each peer's identity hash, and keeps no record of who
 has connected. Its operator and ban lists (`trusted_identities`, a room's `operators`, `voiced`,
@@ -30,6 +31,7 @@ upstream default) it does nothing.
 
 **Retire when:** upstream adds a setting that stops non-operators founding rooms by joining an
 unknown name, and the submodule is bumped past it (then map Hub Settings onto that setting).
+Proposed upstream in [kc1awv/rrcd#20](https://github.com/kc1awv/rrcd/issues/20).
 
 rrcd lets anyone create a room by joining a name that does not exist; the room lives until it
 empties. For a hub whose operator decides which rooms exist — the way Ratspeak's built-in hub
