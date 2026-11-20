@@ -1,0 +1,3 @@
+[submodule "rrcd"]
+	path = rrcd
+	url = https://github.com/kc1awv/rrcd.git

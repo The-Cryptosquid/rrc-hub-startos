@@ -1,0 +1,141 @@
+diff --git i/rrcd/config.py w/rrcd/config.py
+index 2e065c2..81dcc5e 100644
+--- i/rrcd/config.py
++++ w/rrcd/config.py
+@@ -44,6 +44,7 @@ class HubRuntimeConfig:
+     log_file: str | None = None
+     log_format: str = "%(asctime)s %(levelname)s %(name)s[%(threadName)s]: %(message)s"
+     log_datefmt: str | None = None
++    seen_users_path: str | None = None
+ 
+ 
+ class ConfigManager:
+@@ -115,6 +116,8 @@ class ConfigManager:
+             updates["greeting"] = None
+         if "log_file" in updates and updates["log_file"] == "":
+             updates["log_file"] = None
++        if "seen_users_path" in updates and updates["seen_users_path"] == "":
++            updates["seen_users_path"] = None
+         if "log_datefmt" in updates and updates["log_datefmt"] == "":
+             updates["log_datefmt"] = None
+ 
+diff --git i/rrcd/router.py w/rrcd/router.py
+index 8825598..f93bf48 100644
+--- i/rrcd/router.py
++++ w/rrcd/router.py
+@@ -325,6 +325,7 @@ class MessageRouter:
+             sess.get("nick"),
+             self.hub._fmt_link_id(link),
+         )
++        self.hub.seen_users.record(peer_hash, sess.get("nick"))
+ 
+         self.hub.session_manager.send_welcome(
+             link,
+@@ -384,6 +385,7 @@ class MessageRouter:
+             sess.get("nick"),
+             self.hub._fmt_link_id(link),
+         )
++        self.hub.seen_users.record(peer_hash, sess.get("nick"))
+ 
+         self.hub.session_manager.send_welcome(
+             link,
+diff --git i/rrcd/seen.py w/rrcd/seen.py
+new file mode 100644
+index 0000000..a38ebed
+--- /dev/null
++++ w/rrcd/seen.py
+@@ -0,0 +1,74 @@
++from __future__ import annotations
++
++import json
++import os
++import threading
++import time
++from typing import TYPE_CHECKING
++
++if TYPE_CHECKING:
++    from .service import HubService
++
++# Keep the most recently seen identities only, so the file stays small on a
++# busy hub.
++MAX_SEEN_USERS = 500
++
++
++class SeenUsers:
++    """
++    Records the full identity hash and last nickname of every peer that
++    completes HELLO, in a JSON file (config key ``seen_users_path``).
++
++    rrcd logs only a 12-character hash prefix, which is not enough to name a
++    user in ``trusted_identities`` or a room's operator/voice/ban lists. This
++    file lets an operator pick a user who has connected instead of asking them
++    for their identity hash. Disabled when ``seen_users_path`` is unset.
++    """
++
++    def __init__(self, hub: HubService) -> None:
++        self.hub = hub
++        self.log = hub.log
++        self._lock = threading.Lock()
++
++    def record(self, peer_hash: bytes | None, nick: str | None) -> None:
++        path = self.hub.config.seen_users_path
++        if not path or not isinstance(peer_hash, (bytes, bytearray)):
++            return
++        path = os.path.expanduser(str(path))
++        try:
++            with self._lock:
++                try:
++                    with open(path, encoding="utf-8") as f:
++                        data = json.load(f)
++                except FileNotFoundError:
++                    data = {}
++                except Exception:
++                    self.log.warning("Unreadable seen-users file, starting over: %s", path)
++                    data = {}
++                users = data.get("users") if isinstance(data, dict) else None
++                if not isinstance(users, dict):
++                    users = {}
++
++                key = bytes(peer_hash).hex()
++                entry = users.get(key) if isinstance(users.get(key), dict) else {}
++                now = time.time()
++                entry.setdefault("first_seen", now)
++                entry["last_seen"] = now
++                if isinstance(nick, str) and nick:
++                    entry["nick"] = nick
++                users[key] = entry
++
++                if len(users) > MAX_SEEN_USERS:
++                    newest = sorted(
++                        users.items(),
++                        key=lambda kv: float(kv[1].get("last_seen", 0)),
++                        reverse=True,
++                    )[:MAX_SEEN_USERS]
++                    users = dict(newest)
++
++                tmp = f"{path}.tmp"
++                with open(tmp, "w", encoding="utf-8") as f:
++                    json.dump({"users": users}, f, indent=1, sort_keys=True)
++                os.replace(tmp, path)
++        except Exception:
++            self.log.exception("Failed to record seen user")
+diff --git i/rrcd/service.py w/rrcd/service.py
+index 8ccbd6d..f9ec42a 100644
+--- i/rrcd/service.py
++++ w/rrcd/service.py
+@@ -23,6 +23,7 @@ from .messages import MessageHelper
+ from .resources import ResourceManager
+ from .rooms import RoomManager
+ from .router import MessageRouter, OutgoingList
++from .seen import SeenUsers
+ from .session import SessionManager
+ from .stats import StatsManager
+ from .trust import TrustManager
+@@ -47,6 +48,7 @@ class HubService:
+         self.stats_manager = StatsManager(self)
+         self.trust_manager = TrustManager(self)
+         self.config_manager = ConfigManager(self)
++        self.seen_users = SeenUsers(self)
+         self.message_helper = MessageHelper(self)
+         self.identity: RNS.Identity | None = None
+         self.destination: RNS.Destination | None = None

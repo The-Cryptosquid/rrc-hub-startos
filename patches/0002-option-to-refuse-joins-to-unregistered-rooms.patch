@@ -1,0 +1,42 @@
+diff --git i/rrcd/config.py w/rrcd/config.py
+index 81dcc5e..3cea17a 100644
+--- i/rrcd/config.py
++++ w/rrcd/config.py
+@@ -45,6 +45,7 @@ class HubRuntimeConfig:
+     log_format: str = "%(asctime)s %(levelname)s %(name)s[%(threadName)s]: %(message)s"
+     log_datefmt: str | None = None
+     seen_users_path: str | None = None
++    allow_unregistered_rooms: bool = True
+ 
+ 
+ class ConfigManager:
+diff --git i/rrcd/router.py w/rrcd/router.py
+index f93bf48..d471076 100644
+--- i/rrcd/router.py
++++ w/rrcd/router.py
+@@ -434,6 +434,25 @@ class MessageRouter:
+                 )
+             return
+ 
++        # With allow_unregistered_rooms off, only registered rooms can be
++        # joined; a JOIN naming any other room is refused instead of founding
++        # it. Hub operators (trusted_identities) are exempt, so they can still
++        # open a room and /register it in-band.
++        if (
++            not bool(getattr(self.hub.config, "allow_unregistered_rooms", True))
++            and r not in self.hub.room_manager._room_registry
++            and not self.hub.trust_manager.is_trusted(peer_hash)
++        ):
++            if self.hub.identity is not None:
++                self.hub.message_helper.emit_error(
++                    outgoing,
++                    link,
++                    src=self.hub.identity.hash,
++                    text="no such room",
++                    room=r,
++                )
++            return
++
+         if r in self.hub.room_manager._room_registry:
+             self.hub.room_manager._room_state_ensure(r)
+ 

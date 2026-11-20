@@ -1,0 +1,53 @@
+name: Tag and Release
+
+on:
+  push:
+    branches: ['master']
+    paths-ignore: ['*.md']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # This package isn't on the registry the shared workflow checks, so that
+  # check would re-release the same version on every push. Release a version
+  # once: skip when its tag already exists here.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      new: ${{ steps.tag.outputs.new }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version
+        id: extract
+        uses: Start9Labs/start-technologies/.github/actions/extract-version@master
+
+      - name: Check for an existing release tag
+        id: tag
+        run: |
+          TAG="${{ steps.extract.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists; nothing to release."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag ${TAG} not found; releasing."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+  tag:
+    needs: check
+    if: needs.check.outputs.new == 'true'
+    uses: Start9Labs/start-technologies/.github/workflows/tagAndRelease.yml@master
+    with:
+      REFERENCE_REGISTRY: ${{ vars.REFERENCE_REGISTRY }}
+      RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
+      S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
+    secrets:
+      DEV_KEY: ${{ secrets.DEV_KEY }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+    permissions:
+      contents: write
