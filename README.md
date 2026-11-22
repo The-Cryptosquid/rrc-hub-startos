@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" alt="RRC Hub Logo" width="21%">
+  <img src=".github/social-preview.png" alt="RRC Hub on StartOS" width="100%">
 </p>
 
 # RRC Hub: Reticulum Community Channels on StartOS
