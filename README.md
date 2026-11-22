@@ -16,6 +16,20 @@ Ratspeak (its Channels feature) and Nomad Network. The package runs
 small patches, and manages it entirely through StartOS actions. It has no web
 interface.
 
+The alternatives are joining a hub someone else runs, or running rrcd on a
+personal computer. The StartOS hub differs from them in four ways:
+
+- **The rooms and moderation are yours.** The server's owner decides which
+  rooms exist, who operates them, who is banned, and whether unknown room names
+  can be founded at all.
+- **The hub is always on.** It runs whenever the server does, so rooms stay
+  reachable while personal computers are asleep or offline.
+- **The hub address survives.** The hub identity is backed up with the rest of
+  its state, so a restored hub keeps the address members already joined.
+- **It shares the server's Reticulum connections.** It can reach the network
+  through Nomad Network or MeshChat on the same server, and accepts direct TCP
+  connections from members without any shared public server.
+
 ---
 
 ## Table of Contents
